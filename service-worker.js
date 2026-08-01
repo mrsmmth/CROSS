@@ -1,5 +1,5 @@
-const CACHE = "cross-v01";
-const ASSETS = ["./", "./index.html", "./style.css?v=01", "./app.js?v=01", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
+const CACHE = "cross-v10";
+const ASSETS = ["./", "./index.html", "./style.css?v=10", "./app.js?v=10", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
   self.skipWaiting();

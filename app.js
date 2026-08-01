@@ -1,125 +1,186 @@
-
 (() => {
+  "use strict";
+
   const STORAGE_KEY = "cross-globe-v1";
-  const DEFAULT_CONTINENTS = {
-    av: "AVEL",
-    nr: "NORIA",
-    vc: "VELCA",
-    sr: "SERA",
-    or: "ORNE"
-  };
+  const LONG_PRESS_MS = 620;
+  const MOVE_THRESHOLD = 7;
+  const SIZE_RADIUS = { small: 5.5, medium: 9.5, large: 15 };
+  const SIZE_LABEL = { small: "小", medium: "中", large: "大" };
 
-  const CONTINENT_SHAPES = {
-    av: [[-20, -12], [-6, -22], [12, -18], [26, -6], [18, 12], [0, 18], [-16, 10], [-24, -2]],
-    nr: [[-58, -56], [-36, -60], [-20, -48], [-28, -34], [-50, -36], [-62, -46]],
-    vc: [[34, -16], [56, -20], [68, -8], [64, 10], [44, 16], [28, 2]],
-    sr: [[-8, 28], [18, 24], [36, 34], [28, 52], [8, 60], [-12, 50], [-16, 36]],
-    or: [[-62, 2], [-42, -8], [-36, 10], [-46, 28], [-64, 20]]
-  };
+  const DEFAULT_CONTINENTS = [
+    { id: "av", name: "AVEL", size: "large", custom: false, points: [[-20,-12],[-6,-22],[12,-18],[26,-6],[18,12],[0,18],[-16,10],[-24,-2]] },
+    { id: "nr", name: "NORIA", size: "medium", custom: false, points: [[-58,-56],[-36,-60],[-20,-48],[-28,-34],[-50,-36],[-62,-46]] },
+    { id: "vc", name: "VELCA", size: "large", custom: false, points: [[34,-16],[56,-20],[68,-8],[64,10],[44,16],[28,2]] },
+    { id: "sr", name: "SERA", size: "large", custom: false, points: [[-8,28],[18,24],[36,34],[28,52],[8,60],[-12,50],[-16,36]] },
+    { id: "or", name: "ORNE", size: "medium", custom: false, points: [[-62,2],[-42,-8],[-36,10],[-46,28],[-64,20]] }
+  ];
 
-  const SAMPLE_DATA = {
-    version: 1,
-    continentNames: { ...DEFAULT_CONTINENTS },
-    nodes: [
+  function uid(prefix = "id") {
+    return `${prefix}-${Math.random().toString(36).slice(2, 11)}`;
+  }
+
+  const SAMPLE_DATA = (() => {
+    const nodes = [
       { id: uid(), name: "新島晴人", work: "君は写りたがらない", gender: "男性", age: "28", job: "会社員", detail: "主人公。膵臓がん。", continent: "av", lat: 2, lon: -8 },
       { id: uid(), name: "北原菜摘", work: "君は写りたがらない", gender: "女性", age: "28", job: "会社員", detail: "妊娠初期。", continent: "av", lat: 14, lon: 22 },
       { id: uid(), name: "松木蓮太郎", work: "まっすぐを見た日", gender: "男性", age: "28", job: "芸人", detail: "盲目の主人公。", continent: "nr", lat: -38, lon: -46 },
       { id: uid(), name: "夜行", work: "POPLAB", gender: "-", age: "-", job: "記録者", detail: "POPLABの記録者。", continent: "vc", lat: -4, lon: 58 }
-    ],
-    links: [],
-    camera: { rotX: -0.2, rotY: 0.58, zoom: 1 },
-    moveMode: false,
-    selectedId: null
-  };
+    ];
+    return {
+      version: 2,
+      continents: clone(DEFAULT_CONTINENTS),
+      nodes,
+      links: [[nodes[0].id, nodes[1].id], [nodes[2].id, nodes[3].id]],
+      camera: { rotX: -0.2, rotY: 0.58, zoom: 1 },
+      moveMode: false,
+      viewMode: false,
+      selectedId: nodes[0].id
+    };
+  })();
 
-  function uid() {
-    return "id-" + Math.random().toString(36).slice(2, 11);
-  }
-
-  const canvas = document.getElementById("globeCanvas");
+  const $ = id => document.getElementById(id);
+  const appShell = $("appShell");
+  const canvas = $("globeCanvas");
   const ctx = canvas.getContext("2d");
-  const addNodeButton = document.getElementById("addNodeButton");
-  const moveModeButton = document.getElementById("moveModeButton");
-  const settingsButton = document.getElementById("settingsButton");
-  const searchInput = document.getElementById("searchInput");
-  const workFilter = document.getElementById("workFilter");
-  const continentFilter = document.getElementById("continentFilter");
-  const resultList = document.getElementById("resultList");
-  const resultCount = document.getElementById("resultCount");
-  const selectedTitle = document.getElementById("selectedTitle");
-  const selectedMeta = document.getElementById("selectedMeta");
-  const focusSelectedButton = document.getElementById("focusSelectedButton");
-  const editSelectedButton = document.getElementById("editSelectedButton");
-  const connectSelectedButton = document.getElementById("connectSelectedButton");
-  const toast = document.getElementById("toast");
+  const addNodeButton = $("addNodeButton");
+  const moveModeButton = $("moveModeButton");
+  const settingsButton = $("settingsButton");
+  const viewModeButton = $("viewModeButton");
+  const exitViewButton = $("exitViewButton");
+  const searchInput = $("searchInput");
+  const workFilter = $("workFilter");
+  const continentFilter = $("continentFilter");
+  const resultList = $("resultList");
+  const resultCount = $("resultCount");
+  const selectedTitle = $("selectedTitle");
+  const selectedMeta = $("selectedMeta");
+  const focusSelectedButton = $("focusSelectedButton");
+  const editSelectedButton = $("editSelectedButton");
+  const connectSelectedButton = $("connectSelectedButton");
+  const longPressHint = $("longPressHint");
+  const toast = $("toast");
 
-  const editorModal = document.getElementById("editorModal");
-  const editorTitle = document.getElementById("editorTitle");
-  const nameInput = document.getElementById("nameInput");
-  const workInput = document.getElementById("workInput");
-  const genderInput = document.getElementById("genderInput");
-  const ageInput = document.getElementById("ageInput");
-  const jobInput = document.getElementById("jobInput");
-  const continentInput = document.getElementById("continentInput");
-  const detailInput = document.getElementById("detailInput");
-  const saveNodeButton = document.getElementById("saveNodeButton");
-  const deleteNodeButton = document.getElementById("deleteNodeButton");
+  const editorModal = $("editorModal");
+  const editorTitle = $("editorTitle");
+  const nameInput = $("nameInput");
+  const workInput = $("workInput");
+  const genderInput = $("genderInput");
+  const ageInput = $("ageInput");
+  const jobInput = $("jobInput");
+  const continentInput = $("continentInput");
+  const detailInput = $("detailInput");
+  const saveNodeButton = $("saveNodeButton");
+  const deleteNodeButton = $("deleteNodeButton");
 
-  const connectModal = document.getElementById("connectModal");
-  const connectSearchInput = document.getElementById("connectSearchInput");
-  const connectWorkFilter = document.getElementById("connectWorkFilter");
-  const connectContinentFilter = document.getElementById("connectContinentFilter");
-  const connectList = document.getElementById("connectList");
+  const connectModal = $("connectModal");
+  const connectSearchInput = $("connectSearchInput");
+  const connectWorkFilter = $("connectWorkFilter");
+  const connectContinentFilter = $("connectContinentFilter");
+  const connectList = $("connectList");
 
-  const settingsModal = document.getElementById("settingsModal");
-  const continentNameList = document.getElementById("continentNameList");
-  const saveSettingsButton = document.getElementById("saveSettingsButton");
-  const exportButton = document.getElementById("exportButton");
-  const importInput = document.getElementById("importInput");
+  const settingsModal = $("settingsModal");
+  const helpModal = $("helpModal");
+  const continentNameList = $("continentNameList");
+  const newIslandNameInput = $("newIslandNameInput");
+  const newIslandSizeInput = $("newIslandSizeInput");
+  const addIslandButton = $("addIslandButton");
+  const helpButton = $("helpButton");
+  const saveSettingsButton = $("saveSettingsButton");
+  const exportButton = $("exportButton");
+  const importInput = $("importInput");
 
   let state = loadState();
   let editingId = null;
+  let pendingSpawnPosition = null;
   let dragging = false;
   let moved = false;
   let pointerStart = null;
+  let pointerLast = null;
   let activePointerId = null;
   let activeNodeId = null;
   let pinchDistance = null;
   let focusTarget = null;
   let hoverHits = [];
   let toastTimer = null;
+  let longPressTimer = null;
+  let longPressCandidate = null;
+  let longPressTriggered = false;
   let dpr = Math.max(1, window.devicePixelRatio || 1);
+
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function migrateState(parsed) {
+    const migrated = parsed && typeof parsed === "object" ? parsed : clone(SAMPLE_DATA);
+    if (!Array.isArray(migrated.continents)) {
+      const oldNames = migrated.continentNames || {};
+      migrated.continents = clone(DEFAULT_CONTINENTS).map(item => ({ ...item, name: oldNames[item.id] || item.name }));
+    }
+    migrated.continents = migrated.continents.map((item, index) => normalizeContinent(item, index));
+    if (!migrated.continents.length) migrated.continents = clone(DEFAULT_CONTINENTS);
+    migrated.nodes = Array.isArray(migrated.nodes) ? migrated.nodes : [];
+    migrated.links = Array.isArray(migrated.links) ? migrated.links : [];
+    migrated.camera = { rotX: -0.2, rotY: 0.58, zoom: 1, ...(migrated.camera || {}) };
+    migrated.camera.zoom = clamp(Number(migrated.camera.zoom) || 1, 0.74, 1.64);
+    migrated.moveMode = false;
+    migrated.viewMode = false;
+    migrated.version = 2;
+    const validIds = new Set(migrated.continents.map(item => item.id));
+    const fallbackId = migrated.continents[0].id;
+    migrated.nodes.forEach(node => {
+      if (!validIds.has(node.continent)) node.continent = fallbackId;
+      node.lat = clamp(Number(node.lat) || 0, -89, 89);
+      node.lon = wrapLon(Number(node.lon) || 0);
+    });
+    if (!migrated.nodes.some(node => node.id === migrated.selectedId)) migrated.selectedId = migrated.nodes[0]?.id || null;
+    delete migrated.continentNames;
+    return migrated;
+  }
+
+  function normalizeContinent(item, index) {
+    const fallback = DEFAULT_CONTINENTS[index] || DEFAULT_CONTINENTS[0];
+    const points = Array.isArray(item.points) && item.points.length >= 3 ? item.points : clone(fallback.points);
+    return {
+      id: String(item.id || uid("is")),
+      name: String(item.name || `ISLAND ${index + 1}`),
+      size: SIZE_RADIUS[item.size] ? item.size : "medium",
+      custom: Boolean(item.custom),
+      points: points.map(pair => [clamp(Number(pair[0]) || 0, -82, 82), wrapLon(Number(pair[1]) || 0)])
+    };
+  }
 
   function loadState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.nodes && parsed.continentNames) {
-          parsed.continentNames = { ...DEFAULT_CONTINENTS, ...parsed.continentNames };
-          parsed.moveMode = false;
-          return parsed;
-        }
-      }
-    } catch (_) {}
-    const sample = structuredClone(SAMPLE_DATA);
-    sample.links = [[sample.nodes[0].id, sample.nodes[1].id], [sample.nodes[2].id, sample.nodes[3].id]];
-    sample.selectedId = sample.nodes[0].id;
-    return sample;
+      if (raw) return migrateState(JSON.parse(raw));
+    } catch (error) {
+      console.warn("CROSS state load failed", error);
+    }
+    return clone(SAMPLE_DATA);
   }
 
-  function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    renderFilters();
-    renderSelectedInfo();
-    renderSearchResults();
+  function persistState() {
+    const persisted = clone(state);
+    persisted.moveMode = false;
+    persisted.viewMode = false;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+  }
+
+  function saveState({ rerender = true } = {}) {
+    persistState();
+    if (rerender) {
+      renderFilters();
+      renderSelectedInfo();
+      renderSearchResults();
+    }
   }
 
   function showToast(message) {
     toast.textContent = message;
     toast.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove("show"), 1400);
+    toastTimer = setTimeout(() => toast.classList.remove("show"), 1500);
   }
 
   function setModal(modal, open) {
@@ -127,11 +188,30 @@
   }
 
   document.querySelectorAll("[data-close]").forEach(button => {
-    button.addEventListener("click", () => setModal(document.getElementById(button.dataset.close), false));
+    button.addEventListener("click", () => setModal($(button.dataset.close), false));
   });
 
   function getNode(id) {
     return state.nodes.find(node => node.id === id) || null;
+  }
+
+  function getContinent(id) {
+    return state.continents.find(item => item.id === id) || null;
+  }
+
+  function continentName(id) {
+    return getContinent(id)?.name || id || "-";
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function wrapLon(lon) {
+    let result = lon;
+    while (result > 180) result -= 360;
+    while (result < -180) result += 360;
+    return result;
   }
 
   function latLonToVec(lat, lon, scale = 1) {
@@ -146,10 +226,7 @@
 
   function vecToLatLon(v) {
     const n = normalize(v);
-    return {
-      lat: Math.asin(n.y) * 180 / Math.PI,
-      lon: Math.atan2(n.x, n.z) * 180 / Math.PI
-    };
+    return { lat: Math.asin(n.y) * 180 / Math.PI, lon: Math.atan2(n.x, n.z) * 180 / Math.PI };
   }
 
   function rotateY(v, angle) {
@@ -167,8 +244,7 @@
   }
 
   function inverseRotatePoint(v) {
-    const rx = rotateX(v, -state.camera.rotX);
-    return rotateY(rx, -state.camera.rotY);
+    return rotateY(rotateX(v, -state.camera.rotX), -state.camera.rotY);
   }
 
   function normalize(v) {
@@ -181,10 +257,10 @@
   function getGlobeMetrics() {
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
-    const panelOffset = window.innerWidth > 820 ? 0 : 0;
+    const viewScale = state.viewMode ? 0.31 : 0.24;
     const cx = width / 2;
-    const cy = height / 2 + (window.innerWidth > 820 ? 26 : 40);
-    const radius = Math.min(width, height) * 0.24 * state.camera.zoom;
+    const cy = height / 2 + (state.viewMode ? 0 : (window.innerWidth > 820 ? 26 : 40));
+    const radius = Math.min(width, height) * viewScale * state.camera.zoom;
     return { width, height, cx, cy, radius };
   }
 
@@ -195,7 +271,7 @@
 
   function pathForContinent(points) {
     const rotated = points.map(([lat, lon]) => rotatePoint(latLonToVec(lat, lon)));
-    const frontCount = rotated.filter(p => p.z > -0.08).length;
+    const frontCount = rotated.filter(point => point.z > -0.08).length;
     if (frontCount < 3) return null;
     return rotated.map(project);
   }
@@ -212,133 +288,120 @@
   resize();
 
   function drawBackground() {
-    const { width, height } = canvas.getBoundingClientRect();
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
   }
 
   function drawGlobe() {
     const { cx, cy, radius } = getGlobeMetrics();
-
     const outerGlow = ctx.createRadialGradient(cx, cy, radius * 0.25, cx, cy, radius * 1.45);
-    outerGlow.addColorStop(0, 'rgba(82,220,255,0.05)');
-    outerGlow.addColorStop(0.65, 'rgba(74,168,255,0.03)');
-    outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
+    outerGlow.addColorStop(0, "rgba(82,220,255,0.05)");
+    outerGlow.addColorStop(0.65, "rgba(74,168,255,0.03)");
+    outerGlow.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = outerGlow;
     ctx.beginPath(); ctx.arc(cx, cy, radius * 1.48, 0, Math.PI * 2); ctx.fill();
 
     const sphere = ctx.createRadialGradient(cx - radius * 0.26, cy - radius * 0.35, radius * 0.05, cx, cy, radius);
-    sphere.addColorStop(0, 'rgba(34,126,160,0.23)');
-    sphere.addColorStop(0.42, 'rgba(10,44,74,0.44)');
-    sphere.addColorStop(1, 'rgba(5,17,29,0.85)');
+    sphere.addColorStop(0, "rgba(34,126,160,0.23)");
+    sphere.addColorStop(0.42, "rgba(10,44,74,0.44)");
+    sphere.addColorStop(1, "rgba(5,17,29,0.85)");
     ctx.fillStyle = sphere;
     ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill();
 
     ctx.save();
     ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.clip();
-
-    drawGridLines(cx, cy, radius);
+    drawGridLines();
     drawContinents();
-
     ctx.restore();
 
-    ctx.strokeStyle = 'rgba(117,234,255,0.34)';
+    ctx.strokeStyle = "rgba(117,234,255,0.34)";
     ctx.lineWidth = 1.1;
     ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.04)";
     ctx.beginPath(); ctx.arc(cx, cy, radius * 0.92, 0, Math.PI * 2); ctx.stroke();
   }
 
-  function drawGridLines(cx, cy, radius) {
-    ctx.strokeStyle = 'rgba(112,231,255,0.12)';
+  function drawGridLines() {
+    ctx.strokeStyle = "rgba(112,231,255,0.12)";
     ctx.lineWidth = 1;
-    const latLines = [-60, -30, 0, 30, 60];
-    const lonLines = [-120, -60, 0, 60, 120];
-
-    for (const lat of latLines) {
+    for (const lat of [-60, -30, 0, 30, 60]) {
       ctx.beginPath();
       let first = true;
       for (let lon = -180; lon <= 180; lon += 4) {
-        const p = project(rotatePoint(latLonToVec(lat, lon)));
-        if (first) { ctx.moveTo(p.x, p.y); first = false; }
-        else ctx.lineTo(p.x, p.y);
+        const point = project(rotatePoint(latLonToVec(lat, lon)));
+        if (first) { ctx.moveTo(point.x, point.y); first = false; } else ctx.lineTo(point.x, point.y);
       }
       ctx.stroke();
     }
-
-    for (const lon of lonLines) {
+    for (const lon of [-120, -60, 0, 60, 120]) {
       ctx.beginPath();
       let first = true;
       for (let lat = -89; lat <= 89; lat += 3) {
-        const p = project(rotatePoint(latLonToVec(lat, lon)));
-        if (first) { ctx.moveTo(p.x, p.y); first = false; }
-        else ctx.lineTo(p.x, p.y);
+        const point = project(rotatePoint(latLonToVec(lat, lon)));
+        if (first) { ctx.moveTo(point.x, point.y); first = false; } else ctx.lineTo(point.x, point.y);
       }
       ctx.stroke();
     }
   }
 
   function drawContinents() {
-    Object.entries(CONTINENT_SHAPES).forEach(([id, shape]) => {
-      const path = pathForContinent(shape);
+    state.continents.forEach(continent => {
+      const path = pathForContinent(continent.points);
       if (!path) return;
       ctx.beginPath();
-      path.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+      path.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
       ctx.closePath();
-      ctx.fillStyle = 'rgba(89, 248, 255, 0.10)';
-      ctx.strokeStyle = 'rgba(111, 240, 255, 0.16)';
-      ctx.lineWidth = 1;
+      const alpha = continent.custom ? 0.13 : 0.10;
+      ctx.fillStyle = `rgba(89,248,255,${alpha})`;
+      ctx.strokeStyle = continent.custom ? "rgba(143,246,255,0.24)" : "rgba(111,240,255,0.16)";
+      ctx.lineWidth = continent.custom ? 1.2 : 1;
       ctx.fill();
       ctx.stroke();
 
-      const center = path.reduce((acc, p) => ({ x: acc.x + p.x / path.length, y: acc.y + p.y / path.length }), { x: 0, y: 0 });
-      ctx.fillStyle = 'rgba(205,248,255,0.45)';
-      ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(state.continentNames[id] || id, center.x, center.y);
+      const center = path.reduce((sum, point) => ({ x: sum.x + point.x / path.length, y: sum.y + point.y / path.length }), { x: 0, y: 0 });
+      ctx.fillStyle = "rgba(205,248,255,0.45)";
+      ctx.font = "10px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(continent.name, center.x, center.y);
     });
   }
 
   function slerp(a, b, t) {
     const na = normalize(a), nb = normalize(b);
-    let dot = na.x * nb.x + na.y * nb.y + na.z * nb.z;
-    dot = Math.max(-1, Math.min(1, dot));
+    let dot = clamp(na.x * nb.x + na.y * nb.y + na.z * nb.z, -1, 1);
+    if (Math.abs(dot) > 0.9995) return normalize({ x: lerp(na.x, nb.x, t), y: lerp(na.y, nb.y, t), z: lerp(na.z, nb.z, t) });
     const theta = Math.acos(dot) * t;
-    const rel = normalize({ x: nb.x - na.x * dot, y: nb.y - na.y * dot, z: nb.z - na.z * dot });
+    const relative = normalize({ x: nb.x - na.x * dot, y: nb.y - na.y * dot, z: nb.z - na.z * dot });
     return {
-      x: na.x * Math.cos(theta) + rel.x * Math.sin(theta),
-      y: na.y * Math.cos(theta) + rel.y * Math.sin(theta),
-      z: na.z * Math.cos(theta) + rel.z * Math.sin(theta)
+      x: na.x * Math.cos(theta) + relative.x * Math.sin(theta),
+      y: na.y * Math.cos(theta) + relative.y * Math.sin(theta),
+      z: na.z * Math.cos(theta) + relative.z * Math.sin(theta)
     };
   }
 
   function drawConnections() {
     state.links.forEach(([aId, bId]) => {
-      const a = getNode(aId); const b = getNode(bId);
+      const a = getNode(aId), b = getNode(bId);
       if (!a || !b) return;
-      const va = latLonToVec(a.lat, a.lon);
-      const vb = latLonToVec(b.lat, b.lon);
+      const va = latLonToVec(a.lat, a.lon), vb = latLonToVec(b.lat, b.lon);
       ctx.beginPath();
       let visible = false;
-      for (let i = 0; i <= 42; i++) {
-        const t = i / 42;
+      for (let index = 0; index <= 48; index++) {
+        const t = index / 48;
         const base = slerp(va, vb, t);
-        const lift = 1 + Math.sin(Math.PI * t) * 0.18;
-        const p = rotatePoint({ x: base.x * lift, y: base.y * lift, z: base.z * lift });
-        const pr = project(p);
-        if (p.z > -0.12) visible = true;
-        if (i === 0) ctx.moveTo(pr.x, pr.y);
-        else ctx.lineTo(pr.x, pr.y);
+        const lift = 1 + Math.sin(Math.PI * t) * 0.20;
+        const rotated = rotatePoint({ x: base.x * lift, y: base.y * lift, z: base.z * lift });
+        const point = project(rotated);
+        if (rotated.z > -0.15) visible = true;
+        if (!index) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y);
       }
       if (!visible) return;
       const gradient = ctx.createLinearGradient(0, 0, canvas.clientWidth, canvas.clientHeight);
-      gradient.addColorStop(0, 'rgba(122,250,255,0.10)');
-      gradient.addColorStop(.5, 'rgba(122,250,255,0.55)');
-      gradient.addColorStop(1, 'rgba(90,133,255,0.20)');
+      gradient.addColorStop(0, "rgba(122,250,255,0.10)");
+      gradient.addColorStop(0.5, "rgba(122,250,255,0.58)");
+      gradient.addColorStop(1, "rgba(90,133,255,0.20)");
       ctx.strokeStyle = gradient;
-      ctx.lineWidth = 1.35;
-      ctx.shadowColor = 'rgba(114,239,255,0.35)';
+      ctx.lineWidth = state.viewMode ? 1.6 : 1.35;
+      ctx.shadowColor = "rgba(114,239,255,0.35)";
       ctx.shadowBlur = 10;
       ctx.stroke();
       ctx.shadowBlur = 0;
@@ -349,55 +412,50 @@
     hoverHits = [];
     const rendered = state.nodes.map(node => {
       const rotated = rotatePoint(latLonToVec(node.lat, node.lon));
-      const p = project(rotated);
-      return { node, rotated, x: p.x, y: p.y, z: rotated.z, screenRadius: rotated.z > 0 ? 7.5 : 4.2 };
+      const point = project(rotated);
+      return { node, rotated, x: point.x, y: point.y, z: rotated.z, radius: rotated.z > 0 ? 7.5 : 4.2 };
     }).sort((a, b) => a.z - b.z);
 
     rendered.forEach(item => {
       const selected = item.node.id === state.selectedId;
       const focused = focusTarget === item.node.id;
       const alpha = item.z > 0 ? 0.96 : 0.26;
-      const r = item.screenRadius + (selected ? 1.8 : 0);
+      const radius = item.radius + (selected ? 1.8 : 0);
       ctx.globalAlpha = alpha;
-
-      const glow = ctx.createRadialGradient(item.x, item.y, 0, item.x, item.y, r * 3.1);
-      glow.addColorStop(0, focused ? 'rgba(131,255,247,0.45)' : 'rgba(110,231,255,0.35)');
-      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      const glow = ctx.createRadialGradient(item.x, item.y, 0, item.x, item.y, radius * 3.1);
+      glow.addColorStop(0, focused ? "rgba(131,255,247,0.45)" : "rgba(110,231,255,0.35)");
+      glow.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = glow;
-      ctx.beginPath(); ctx.arc(item.x, item.y, r * 3.1, 0, Math.PI * 2); ctx.fill();
-
-      ctx.fillStyle = selected ? 'rgba(197,255,250,0.98)' : 'rgba(145,236,255,0.96)';
-      ctx.beginPath(); ctx.arc(item.x, item.y, r, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = selected ? 'rgba(145,255,239,0.96)' : 'rgba(186,245,255,0.55)';
+      ctx.beginPath(); ctx.arc(item.x, item.y, radius * 3.1, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = selected ? "rgba(197,255,250,0.98)" : "rgba(145,236,255,0.96)";
+      ctx.beginPath(); ctx.arc(item.x, item.y, radius, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = selected ? "rgba(145,255,239,0.96)" : "rgba(186,245,255,0.55)";
       ctx.lineWidth = selected ? 1.8 : 1;
       ctx.stroke();
 
-      if (item.z > 0.42) {
+      if (item.z > (state.viewMode ? 0.22 : 0.42)) {
         ctx.globalAlpha = Math.min(1, 0.42 + item.z * 0.6);
-        ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.fillStyle = selected ? 'rgba(229,255,252,0.98)' : 'rgba(208,247,255,0.84)';
-        ctx.textAlign = 'left';
-        ctx.fillText(item.node.name || 'NO NAME', item.x + 12, item.y + 3);
+        ctx.font = `${state.viewMode ? 13 : 12}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        ctx.fillStyle = selected ? "rgba(229,255,252,0.98)" : "rgba(208,247,255,0.84)";
+        ctx.textAlign = "left";
+        ctx.fillText(item.node.name || "NO NAME", item.x + 12, item.y + 3);
       }
-
-      hoverHits.push({ id: item.node.id, x: item.x, y: item.y, r: Math.max(18, r * 2.4), z: item.z });
+      hoverHits.push({ id: item.node.id, x: item.x, y: item.y, r: Math.max(18, radius * 2.4), z: item.z });
     });
-
     ctx.globalAlpha = 1;
   }
 
   function render() {
     drawBackground();
-
     if (focusTarget) {
       const node = getNode(focusTarget);
       if (node) {
         const target = getFocusAngles(node.lat, node.lon);
         state.camera.rotX = lerp(state.camera.rotX, target.rotX, 0.08);
         state.camera.rotY = lerpAngle(state.camera.rotY, target.rotY, 0.08);
+        if (Math.abs(state.camera.rotX - target.rotX) < 0.002 && Math.abs(angleDiff(state.camera.rotY, target.rotY)) < 0.002) focusTarget = null;
       }
     }
-
     drawGlobe();
     drawConnections();
     drawNodes();
@@ -405,16 +463,18 @@
   }
 
   function getFocusAngles(lat, lon) {
-    const v = latLonToVec(lat, lon);
-    const rotY = -Math.atan2(v.x, v.z);
-    const v1 = rotateY(v, rotY);
-    const rotX = Math.atan2(v1.y, v1.z);
-    return { rotX, rotY };
+    const vector = latLonToVec(lat, lon);
+    const rotY = -Math.atan2(vector.x, vector.z);
+    const rotated = rotateY(vector, rotY);
+    return { rotX: Math.atan2(rotated.y, rotated.z), rotY };
+  }
+
+  function angleDiff(a, b) {
+    return (b - a + Math.PI) % (Math.PI * 2) - Math.PI;
   }
 
   function lerpAngle(a, b, t) {
-    let diff = (b - a + Math.PI) % (Math.PI * 2) - Math.PI;
-    return a + diff * t;
+    return a + angleDiff(a, b) * t;
   }
 
   function focusNode(id) {
@@ -429,43 +489,46 @@
     focusSelectedButton.disabled = disabled;
     editSelectedButton.disabled = disabled;
     connectSelectedButton.disabled = disabled;
-    selectedTitle.textContent = node ? node.name : 'NO CHARACTER';
+    selectedTitle.textContent = node ? node.name : "NO CHARACTER";
     if (!node) {
-      selectedMeta.classList.add('empty');
-      selectedMeta.textContent = '地球上の座標をタップすると、ここに詳細が表示されます。';
+      selectedMeta.classList.add("empty");
+      selectedMeta.textContent = "地球上の座標をタップすると、ここに詳細が表示されます。";
       return;
     }
-    selectedMeta.classList.remove('empty');
+    selectedMeta.classList.remove("empty");
     selectedMeta.textContent = [
-      `作品名：${node.work || '-'}`,
-      `性別：${node.gender || '-'}`,
-      `年齢：${node.age || '-'}`,
-      `職業：${node.job || '-'}`,
-      `大陸：${state.continentNames[node.continent] || node.continent}`,
-      node.detail ? `\n${node.detail}` : ''
-    ].join('\n');
+      `作品名：${node.work || "-"}`,
+      `性別：${node.gender || "-"}`,
+      `年齢：${node.age || "-"}`,
+      `職業：${node.job || "-"}`,
+      `島：${continentName(node.continent)}`,
+      node.detail ? `\n${node.detail}` : ""
+    ].join("\n");
   }
 
   function uniqueWorks() {
-    return Array.from(new Set(state.nodes.map(node => node.work).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ja'));
+    return Array.from(new Set(state.nodes.map(node => node.work).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ja"));
   }
 
-  function fillSelect(select, options, includeAll = true, allLabel = 'ALL') {
+  function fillSelect(select, options, includeAll = true, allLabel = "ALL") {
     const current = select.value;
-    select.innerHTML = '';
-    if (includeAll) select.appendChild(new Option(allLabel, ''));
-    options.forEach(opt => select.appendChild(new Option(opt.label, opt.value)));
-    select.value = options.some(opt => opt.value === current) || (includeAll && current === '') ? current : '';
+    select.innerHTML = "";
+    if (includeAll) select.appendChild(new Option(allLabel, ""));
+    options.forEach(option => select.appendChild(new Option(option.label, option.value)));
+    if ([...select.options].some(option => option.value === current)) select.value = current;
   }
 
   function renderFilters() {
-    fillSelect(workFilter, uniqueWorks().map(work => ({ label: work, value: work })));
-    fillSelect(connectWorkFilter, uniqueWorks().map(work => ({ label: work, value: work })));
-    const continentOptions = Object.entries(state.continentNames).map(([value, label]) => ({ value, label }));
-    fillSelect(continentFilter, continentOptions);
-    fillSelect(connectContinentFilter, continentOptions);
-    continentInput.innerHTML = '';
-    continentOptions.forEach(opt => continentInput.appendChild(new Option(opt.label, opt.value)));
+    const works = uniqueWorks().map(work => ({ label: work, value: work }));
+    const islands = state.continents.map(item => ({ label: item.name, value: item.id }));
+    fillSelect(workFilter, works);
+    fillSelect(connectWorkFilter, works);
+    fillSelect(continentFilter, islands);
+    fillSelect(connectContinentFilter, islands);
+    const current = continentInput.value;
+    continentInput.innerHTML = "";
+    islands.forEach(option => continentInput.appendChild(new Option(option.label, option.value)));
+    if (islands.some(option => option.value === current)) continentInput.value = current;
   }
 
   function filteredNodes(forConnect = false) {
@@ -474,8 +537,7 @@
     const continent = forConnect ? connectContinentFilter.value : continentFilter.value;
     return state.nodes.filter(node => {
       if (forConnect && node.id === state.selectedId) return false;
-      const text = `${node.name} ${node.work}`.toLowerCase();
-      if (query && !text.includes(query)) return false;
+      if (query && !`${node.name} ${node.work}`.toLowerCase().includes(query)) return false;
       if (work && node.work !== work) return false;
       if (continent && node.continent !== continent) return false;
       return true;
@@ -484,99 +546,108 @@
 
   function renderSearchResults() {
     const nodes = filteredNodes(false);
-    resultList.innerHTML = '';
+    resultList.innerHTML = "";
     resultCount.textContent = `${nodes.length} RESULTS`;
     nodes.forEach(node => {
-      const button = document.createElement('button');
-      button.className = 'result-item' + (node.id === state.selectedId ? ' active' : '');
-      button.innerHTML = `<div class="name">${escapeHtml(node.name || 'NO NAME')}</div><div class="meta">${escapeHtml(node.work || '-')} ｜ ${escapeHtml(state.continentNames[node.continent] || node.continent)}</div>`;
-      button.addEventListener('click', () => {
-        focusNode(node.id);
-        showToast(`「${node.name}」にフォーカス`);
-      });
+      const button = document.createElement("button");
+      button.className = `result-item${node.id === state.selectedId ? " active" : ""}`;
+      button.innerHTML = `<div class="name">${escapeHtml(node.name || "NO NAME")}</div><div class="meta">${escapeHtml(node.work || "-")} ｜ ${escapeHtml(continentName(node.continent))}</div>`;
+      button.addEventListener("click", () => { focusNode(node.id); showToast(`「${node.name}」にフォーカス`); });
       resultList.appendChild(button);
     });
   }
 
   function renderConnectList() {
     const nodes = filteredNodes(true);
-    connectList.innerHTML = '';
+    connectList.innerHTML = "";
     const selected = state.selectedId;
-    const links = new Set(state.links.map(link => sortLink(...link).join('|')));
+    const links = new Set(state.links.map(link => sortLink(...link).join("|")));
     nodes.forEach(node => {
-      const key = sortLink(selected, node.id).join('|');
+      const key = sortLink(selected, node.id).join("|");
       const linked = links.has(key);
-      const button = document.createElement('button');
-      button.className = 'connect-item';
-      button.innerHTML = `<div class="name">${escapeHtml(node.name)}</div><div class="meta">${escapeHtml(node.work || '-')} ｜ ${escapeHtml(state.continentNames[node.continent] || node.continent)} ｜ ${linked ? 'CONNECTED' : 'NOT CONNECTED'}</div>`;
-      button.addEventListener('click', () => {
+      const button = document.createElement("button");
+      button.className = "connect-item";
+      button.innerHTML = `<div class="name">${escapeHtml(node.name)}</div><div class="meta">${escapeHtml(node.work || "-")} ｜ ${escapeHtml(continentName(node.continent))} ｜ ${linked ? "CONNECTED" : "NOT CONNECTED"}</div>`;
+      button.addEventListener("click", () => {
         toggleLink(selected, node.id);
         renderConnectList();
-        showToast(linked ? '接続を解除しました' : '接続しました');
+        showToast(linked ? "接続を解除しました" : "接続しました");
       });
       connectList.appendChild(button);
     });
   }
 
-  function sortLink(a, b) {
-    return [a, b].sort();
-  }
+  function sortLink(a, b) { return [a, b].sort(); }
 
   function toggleLink(a, b) {
     if (!a || !b || a === b) return;
-    const key = sortLink(a, b).join('|');
-    const index = state.links.findIndex(link => sortLink(link[0], link[1]).join('|') === key);
-    if (index >= 0) state.links.splice(index, 1);
-    else state.links.push([a, b]);
+    const key = sortLink(a, b).join("|");
+    const index = state.links.findIndex(link => sortLink(link[0], link[1]).join("|") === key);
+    if (index >= 0) state.links.splice(index, 1); else state.links.push([a, b]);
     saveState();
   }
 
-  function openEditor(id = null) {
+  function nearestContinent(lat, lon) {
+    const target = latLonToVec(lat, lon);
+    let best = state.continents[0];
+    let bestScore = -Infinity;
+    state.continents.forEach(continent => {
+      const center = continentCenter(continent);
+      const vector = latLonToVec(center.lat, center.lon);
+      const score = target.x * vector.x + target.y * vector.y + target.z * vector.z;
+      if (score > bestScore) { bestScore = score; best = continent; }
+    });
+    return best?.id || state.continents[0]?.id || "";
+  }
+
+  function openEditor(id = null, spawnPosition = null) {
     editingId = id;
+    pendingSpawnPosition = spawnPosition;
     const node = id ? getNode(id) : null;
-    editorTitle.textContent = node ? 'EDIT CHARACTER' : 'NEW CHARACTER';
-    nameInput.value = node?.name || '';
-    workInput.value = node?.work || '';
-    genderInput.value = node?.gender || '';
-    ageInput.value = node?.age || '';
-    jobInput.value = node?.job || '';
-    detailInput.value = node?.detail || '';
-    continentInput.value = node?.continent || Object.keys(state.continentNames)[0];
-    deleteNodeButton.style.display = node ? '' : 'none';
+    editorTitle.textContent = node ? "EDIT CHARACTER" : "NEW CHARACTER";
+    nameInput.value = node?.name || "";
+    workInput.value = node?.work || "";
+    genderInput.value = node?.gender || "";
+    ageInput.value = node?.age || "";
+    jobInput.value = node?.job || "";
+    detailInput.value = node?.detail || "";
+    const suggested = spawnPosition ? nearestContinent(spawnPosition.lat, spawnPosition.lon) : state.continents[0]?.id;
+    continentInput.value = node?.continent || suggested || "";
+    deleteNodeButton.style.display = node ? "" : "none";
     setModal(editorModal, true);
   }
 
   function saveNode() {
     const base = editingId ? getNode(editingId) : null;
     const form = {
-      name: nameInput.value.trim() || 'NO NAME',
+      name: nameInput.value.trim() || "NO NAME",
       work: workInput.value.trim(),
       gender: genderInput.value.trim(),
       age: ageInput.value.trim(),
       job: jobInput.value.trim(),
       detail: detailInput.value.trim(),
-      continent: continentInput.value || Object.keys(state.continentNames)[0]
+      continent: continentInput.value || state.continents[0]?.id || ""
     };
-
     if (base) {
       Object.assign(base, form);
       state.selectedId = base.id;
     } else {
-      const position = getSpawnPosition(form.continent);
+      const position = pendingSpawnPosition || getSpawnPosition(form.continent);
       const node = { id: uid(), ...form, lat: position.lat, lon: position.lon };
       state.nodes.push(node);
       state.selectedId = node.id;
       focusTarget = node.id;
     }
+    pendingSpawnPosition = null;
     saveState();
     setModal(editorModal, false);
-    showToast('保存しました');
+    showToast("保存しました");
   }
 
-  function getSpawnPosition(continent) {
-    const base = CONTINENT_SHAPES[continent] || CONTINENT_SHAPES.av;
-    const center = base.reduce((acc, [lat, lon]) => ({ lat: acc.lat + lat / base.length, lon: acc.lon + lon / base.length }), { lat: 0, lon: 0 });
-    return { lat: center.lat + Math.random() * 8 - 4, lon: center.lon + Math.random() * 10 - 5 };
+  function getSpawnPosition(continentId) {
+    const continent = getContinent(continentId) || state.continents[0];
+    const center = continent ? continentCenter(continent) : { lat: 0, lon: 0 };
+    return { lat: clamp(center.lat + Math.random() * 8 - 4, -82, 82), lon: wrapLon(center.lon + Math.random() * 10 - 5) };
   }
 
   function deleteNode() {
@@ -587,45 +658,116 @@
     if (state.selectedId === id) state.selectedId = state.nodes[0]?.id || null;
     saveState();
     setModal(editorModal, false);
-    showToast('削除しました');
+    showToast("削除しました");
   }
 
   function openConnectModal() {
     if (!state.selectedId) return;
-    connectSearchInput.value = '';
-    connectWorkFilter.value = '';
-    connectContinentFilter.value = '';
+    connectSearchInput.value = "";
+    connectWorkFilter.value = "";
+    connectContinentFilter.value = "";
     renderConnectList();
     setModal(connectModal, true);
   }
 
   function renderContinentSettings() {
-    continentNameList.innerHTML = '';
-    Object.entries(state.continentNames).forEach(([key, value]) => {
-      const label = document.createElement('label');
-      label.className = 'field';
-      label.innerHTML = `<span>${key.toUpperCase()}</span><input type="text" data-continent-key="${key}" maxlength="40" value="${escapeHtml(value)}" />`;
-      continentNameList.appendChild(label);
+    continentNameList.innerHTML = "";
+    state.continents.forEach(continent => {
+      const row = document.createElement("div");
+      row.className = "island-name-row";
+      row.innerHTML = `<label class="field"><span>${escapeHtml(continent.id.toUpperCase())}</span><input type="text" data-continent-id="${escapeHtml(continent.id)}" maxlength="40" value="${escapeHtml(continent.name)}" /></label><div class="size-badge">${SIZE_LABEL[continent.size] || "中"}</div>`;
+      continentNameList.appendChild(row);
     });
   }
 
   function saveSettings() {
-    continentNameList.querySelectorAll('input').forEach(input => {
-      state.continentNames[input.dataset.continentKey] = input.value.trim() || DEFAULT_CONTINENTS[input.dataset.continentKey];
+    continentNameList.querySelectorAll("input[data-continent-id]").forEach(input => {
+      const continent = getContinent(input.dataset.continentId);
+      if (continent) continent.name = input.value.trim() || continent.name;
     });
     saveState();
     renderContinentSettings();
     setModal(settingsModal, false);
-    showToast('設定を保存しました');
+    showToast("設定を保存しました");
+  }
+
+  function addIsland() {
+    const size = SIZE_RADIUS[newIslandSizeInput.value] ? newIslandSizeInput.value : "medium";
+    const name = newIslandNameInput.value.trim() || `ISLAND ${state.continents.length + 1}`;
+    const center = chooseIslandCenter();
+    const continent = {
+      id: uid("is"),
+      name,
+      size,
+      custom: true,
+      points: generateIslandPoints(center.lat, center.lon, size)
+    };
+    state.continents.push(continent);
+    newIslandNameInput.value = "";
+    saveState();
+    renderContinentSettings();
+    focusCoordinate(center.lat, center.lon);
+    showToast(`${name} を追加しました`);
+  }
+
+  function continentCenter(continent) {
+    const vectors = continent.points.map(([lat, lon]) => latLonToVec(lat, lon));
+    const sum = vectors.reduce((acc, vector) => ({ x: acc.x + vector.x, y: acc.y + vector.y, z: acc.z + vector.z }), { x: 0, y: 0, z: 0 });
+    return vecToLatLon(sum);
+  }
+
+  function chooseIslandCenter() {
+    const existing = state.continents.map(continentCenter).map(item => latLonToVec(item.lat, item.lon));
+    let best = { lat: 0, lon: 110, score: -Infinity };
+    for (let index = 0; index < 80; index++) {
+      const lat = -55 + Math.random() * 110;
+      const lon = -140 + Math.random() * 280;
+      const vector = latLonToVec(lat, lon);
+      const nearest = existing.length ? Math.min(...existing.map(other => Math.acos(clamp(vector.x * other.x + vector.y * other.y + vector.z * other.z, -1, 1)))) : Math.PI;
+      if (nearest > best.score) best = { lat, lon, score: nearest };
+    }
+    return { lat: best.lat, lon: best.lon };
+  }
+
+  function generateIslandPoints(centerLat, centerLon, size) {
+    const radius = SIZE_RADIUS[size];
+    const count = size === "small" ? 7 : size === "large" ? 11 : 9;
+    const points = [];
+    for (let index = 0; index < count; index++) {
+      const angle = (Math.PI * 2 * index / count) + (Math.random() - 0.5) * 0.22;
+      const irregular = radius * (0.72 + Math.random() * 0.45);
+      const lat = clamp(centerLat + Math.sin(angle) * irregular, -78, 78);
+      const lonScale = Math.max(0.35, Math.cos(centerLat * Math.PI / 180));
+      const lon = wrapLon(centerLon + Math.cos(angle) * irregular / lonScale);
+      points.push([lat, lon]);
+    }
+    return points;
+  }
+
+  function focusCoordinate(lat, lon) {
+    const target = getFocusAngles(lat, lon);
+    focusTarget = null;
+    const startX = state.camera.rotX;
+    const startY = state.camera.rotY;
+    const started = performance.now();
+    const duration = 560;
+    function step(now) {
+      const t = clamp((now - started) / duration, 0, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      state.camera.rotX = lerp(startX, target.rotX, eased);
+      state.camera.rotY = startY + angleDiff(startY, target.rotY) * eased;
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
   }
 
   function exportJson() {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'cross_backup.json';
-    a.click();
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "cross_backup.json";
+    anchor.click();
     URL.revokeObjectURL(url);
   }
 
@@ -633,27 +775,24 @@
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const parsed = JSON.parse(reader.result);
-        if (!parsed.nodes || !parsed.continentNames) throw new Error('invalid');
-        state = parsed;
-        state.continentNames = { ...DEFAULT_CONTINENTS, ...state.continentNames };
-        state.moveMode = false;
+        state = migrateState(JSON.parse(reader.result));
         focusTarget = state.selectedId;
         saveState();
         renderContinentSettings();
-        showToast('読み込みました');
-      } catch (_) {
-        showToast('JSONの読み込みに失敗しました');
+        updateModeButtons();
+        showToast("読み込みました");
+      } catch (error) {
+        console.error(error);
+        showToast("JSONの読み込みに失敗しました");
       }
     };
     reader.readAsText(file);
   }
 
   function hitTest(x, y) {
-    const hits = hoverHits
-      .map(hit => ({ ...hit, d: Math.hypot(hit.x - x, hit.y - y) }))
-      .filter(hit => hit.d <= hit.r)
-      .sort((a, b) => b.z - a.z || a.d - b.d);
+    const hits = hoverHits.map(hit => ({ ...hit, distance: Math.hypot(hit.x - x, hit.y - y) }))
+      .filter(hit => hit.distance <= hit.r)
+      .sort((a, b) => b.z - a.z || a.distance - b.distance);
     return hits[0]?.id || null;
   }
 
@@ -663,144 +802,194 @@
     const ny = (y - cy) / radius;
     const d2 = nx * nx + ny * ny;
     if (d2 > 1) return null;
-    const nz = Math.sqrt(1 - d2);
-    const rotated = { x: nx, y: ny, z: nz };
-    const base = inverseRotatePoint(rotated);
-    return vecToLatLon(base);
+    const rotated = { x: nx, y: ny, z: Math.sqrt(1 - d2) };
+    return vecToLatLon(inverseRotatePoint(rotated));
   }
 
-  function updateMoveMode() {
-    moveModeButton.textContent = state.moveMode ? 'MOVE ON' : 'MOVE OFF';
-    moveModeButton.classList.toggle('active', state.moveMode);
+  function updateModeButtons() {
+    moveModeButton.textContent = state.moveMode ? "MOVE ON" : "MOVE OFF";
+    moveModeButton.classList.toggle("active", state.moveMode);
+    appShell.classList.toggle("view-mode", state.viewMode);
   }
 
-  addNodeButton.addEventListener('click', () => openEditor());
-  settingsButton.addEventListener('click', () => { renderContinentSettings(); setModal(settingsModal, true); });
-  moveModeButton.addEventListener('click', () => {
+  function enterViewMode() {
+    state.viewMode = true;
+    state.moveMode = false;
+    updateModeButtons();
+    showToast("鑑賞モード");
+  }
+
+  function exitViewMode() {
+    state.viewMode = false;
+    updateModeButtons();
+  }
+
+  function clearLongPress() {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+    longPressCandidate = null;
+    longPressHint.classList.remove("show");
+  }
+
+  function beginLongPress(event, coordinate) {
+    clearLongPress();
+    longPressCandidate = coordinate;
+    longPressHint.style.left = `${event.clientX}px`;
+    longPressHint.style.top = `${event.clientY - 36}px`;
+    longPressHint.classList.add("show");
+    longPressTimer = setTimeout(() => {
+      if (!longPressCandidate || moved || state.moveMode || state.viewMode) return;
+      longPressTriggered = true;
+      dragging = false;
+      const position = { ...longPressCandidate };
+      clearLongPress();
+      openEditor(null, position);
+      if (navigator.vibrate) navigator.vibrate(18);
+    }, LONG_PRESS_MS);
+  }
+
+  addNodeButton.addEventListener("click", () => openEditor());
+  settingsButton.addEventListener("click", () => { renderContinentSettings(); setModal(settingsModal, true); });
+  viewModeButton.addEventListener("click", enterViewMode);
+  exitViewButton.addEventListener("click", exitViewMode);
+  moveModeButton.addEventListener("click", () => {
     state.moveMode = !state.moveMode;
     activeNodeId = null;
-    updateMoveMode();
-    saveState();
-    showToast(state.moveMode ? '移動モードをONにしました' : '移動モードをOFFにしました');
+    updateModeButtons();
+    persistState();
+    showToast(state.moveMode ? "移動モードをONにしました" : "移動モードをOFFにしました");
   });
-  saveNodeButton.addEventListener('click', saveNode);
-  deleteNodeButton.addEventListener('click', deleteNode);
-  focusSelectedButton.addEventListener('click', () => state.selectedId && (focusTarget = state.selectedId));
-  editSelectedButton.addEventListener('click', () => state.selectedId && openEditor(state.selectedId));
-  connectSelectedButton.addEventListener('click', openConnectModal);
-  saveSettingsButton.addEventListener('click', saveSettings);
-  exportButton.addEventListener('click', exportJson);
-  importInput.addEventListener('change', event => {
+  saveNodeButton.addEventListener("click", saveNode);
+  deleteNodeButton.addEventListener("click", deleteNode);
+  focusSelectedButton.addEventListener("click", () => state.selectedId && (focusTarget = state.selectedId));
+  editSelectedButton.addEventListener("click", () => state.selectedId && openEditor(state.selectedId));
+  connectSelectedButton.addEventListener("click", openConnectModal);
+  saveSettingsButton.addEventListener("click", saveSettings);
+  addIslandButton.addEventListener("click", addIsland);
+  helpButton.addEventListener("click", () => setModal(helpModal, true));
+  exportButton.addEventListener("click", exportJson);
+  importInput.addEventListener("change", event => {
     const file = event.target.files?.[0];
     if (file) importJson(file);
-    event.target.value = '';
+    event.target.value = "";
   });
 
-  [searchInput, workFilter, continentFilter].forEach(el => el.addEventListener('input', renderSearchResults));
-  [connectSearchInput, connectWorkFilter, connectContinentFilter].forEach(el => el.addEventListener('input', renderConnectList));
+  [searchInput, workFilter, continentFilter].forEach(element => element.addEventListener("input", renderSearchResults));
+  [connectSearchInput, connectWorkFilter, connectContinentFilter].forEach(element => element.addEventListener("input", renderConnectList));
 
-  canvas.addEventListener('pointerdown', event => {
+  canvas.addEventListener("contextmenu", event => event.preventDefault());
+
+  canvas.addEventListener("pointerdown", event => {
+    if (![editorModal, connectModal, settingsModal, helpModal].every(modal => modal.classList.contains("hidden"))) return;
     activePointerId = event.pointerId;
     canvas.setPointerCapture(event.pointerId);
     dragging = true;
     moved = false;
+    longPressTriggered = false;
     pointerStart = { x: event.clientX, y: event.clientY };
-    if (state.moveMode) {
-      activeNodeId = hitTest(event.clientX, event.clientY) || state.selectedId;
-    }
+    pointerLast = { ...pointerStart };
+    const hit = hitTest(event.clientX, event.clientY);
+    activeNodeId = state.moveMode && !state.viewMode ? hit : null;
+    const coordinate = screenPointToSphere(event.clientX, event.clientY);
+    if (!state.moveMode && !state.viewMode && !hit && coordinate) beginLongPress(event, coordinate);
   });
 
-  canvas.addEventListener('pointermove', event => {
+  canvas.addEventListener("pointermove", event => {
     if (!dragging || event.pointerId !== activePointerId) return;
-    const dx = event.clientX - pointerStart.x;
-    const dy = event.clientY - pointerStart.y;
-    if (Math.hypot(dx, dy) > 4) moved = true;
+    const totalDx = event.clientX - pointerStart.x;
+    const totalDy = event.clientY - pointerStart.y;
+    if (Math.hypot(totalDx, totalDy) > MOVE_THRESHOLD) {
+      moved = true;
+      clearLongPress();
+    }
+    if (!moved) return;
 
-    if (state.moveMode && activeNodeId) {
-      const ll = screenPointToSphere(event.clientX, event.clientY);
-      if (ll) {
-        const node = getNode(activeNodeId);
-        if (node) {
-          node.lat = ll.lat;
-          node.lon = ll.lon;
-          state.selectedId = node.id;
-          focusTarget = null;
-          renderSelectedInfo();
-          renderSearchResults();
-        }
+    const dx = event.clientX - pointerLast.x;
+    const dy = event.clientY - pointerLast.y;
+    pointerLast = { x: event.clientX, y: event.clientY };
+
+    if (state.moveMode && activeNodeId && !state.viewMode) {
+      const coordinate = screenPointToSphere(event.clientX, event.clientY);
+      const node = getNode(activeNodeId);
+      if (coordinate && node) {
+        node.lat = coordinate.lat;
+        node.lon = coordinate.lon;
+        state.selectedId = node.id;
+        focusTarget = null;
+        renderSelectedInfo();
+        renderSearchResults();
       }
-    } else {
+    } else if (!state.moveMode || state.viewMode) {
       state.camera.rotY += dx * 0.0066;
-      state.camera.rotX += dy * 0.0066;
-      state.camera.rotX = Math.max(-1.2, Math.min(1.2, state.camera.rotX));
+      state.camera.rotX -= dy * 0.0066;
+      state.camera.rotX = clamp(state.camera.rotX, -1.2, 1.2);
       focusTarget = null;
-      pointerStart = { x: event.clientX, y: event.clientY };
     }
   });
 
-  canvas.addEventListener('pointerup', event => {
+  canvas.addEventListener("pointerup", event => {
     if (event.pointerId !== activePointerId) return;
-    canvas.releasePointerCapture(event.pointerId);
-    if (!moved) {
+    clearLongPress();
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    if (!longPressTriggered && !moved) {
       const hit = hitTest(event.clientX, event.clientY);
       if (hit) {
         state.selectedId = hit;
         focusTarget = hit;
-        renderSelectedInfo();
-        renderSearchResults();
+        saveState();
       }
-    } else {
-      saveState();
+    } else if (moved) {
+      persistState();
     }
     dragging = false;
     activePointerId = null;
     activeNodeId = null;
+    longPressTriggered = false;
   });
 
-  canvas.addEventListener('wheel', event => {
+  canvas.addEventListener("pointercancel", event => {
+    clearLongPress();
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    dragging = false;
+    activePointerId = null;
+    activeNodeId = null;
+    longPressTriggered = false;
+  });
+
+  canvas.addEventListener("wheel", event => {
     event.preventDefault();
-    const direction = Math.sign(event.deltaY);
-    state.camera.zoom = Math.max(0.74, Math.min(1.64, state.camera.zoom - direction * 0.06));
-    saveState();
+    state.camera.zoom = clamp(state.camera.zoom - Math.sign(event.deltaY) * 0.06, 0.74, 1.64);
+    persistState();
   }, { passive: false });
 
-  let touchStartDistance = 0;
-  canvas.addEventListener('touchstart', event => {
-    if (event.touches.length === 2) {
-      touchStartDistance = distance(event.touches[0], event.touches[1]);
-      pinchDistance = touchStartDistance;
-    }
+  canvas.addEventListener("touchstart", event => {
+    if (event.touches.length === 2) pinchDistance = distance(event.touches[0], event.touches[1]);
   }, { passive: true });
 
-  canvas.addEventListener('touchmove', event => {
+  canvas.addEventListener("touchmove", event => {
     if (event.touches.length === 2 && pinchDistance) {
       const current = distance(event.touches[0], event.touches[1]);
-      const delta = current - pinchDistance;
-      state.camera.zoom = Math.max(0.74, Math.min(1.64, state.camera.zoom + delta * 0.002));
+      state.camera.zoom = clamp(state.camera.zoom + (current - pinchDistance) * 0.002, 0.74, 1.64);
       pinchDistance = current;
     }
   }, { passive: true });
 
-  canvas.addEventListener('touchend', () => {
-    pinchDistance = null;
-  });
+  canvas.addEventListener("touchend", () => { pinchDistance = null; persistState(); });
 
   function distance(a, b) {
     return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
   }
 
-  function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
   }
 
   renderFilters();
   renderSelectedInfo();
   renderSearchResults();
   renderContinentSettings();
-  updateMoveMode();
+  updateModeButtons();
   requestAnimationFrame(render);
 
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js?v=01');
-  }
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker.js?v=10");
 })();

@@ -7,25 +7,26 @@
   <title>CROSS</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icon-192.png" />
-  <link rel="stylesheet" href="./style.css?v=01" />
+  <link rel="stylesheet" href="./style.css?v=10" />
 </head>
 <body>
-  <div class="app-shell">
+  <div id="appShell" class="app-shell">
     <canvas id="globeCanvas"></canvas>
 
-    <header class="topbar holo-panel">
+    <header class="topbar holo-panel ui-window">
       <div>
         <p class="eyebrow">VIRTUAL COORDINATE</p>
         <h1>CROSS</h1>
       </div>
       <div class="topbar-actions">
+        <button id="viewModeButton" class="ghost-btn">VIEW</button>
         <button id="addNodeButton" class="ghost-btn">+ CHARACTER</button>
         <button id="moveModeButton" class="ghost-btn">MOVE OFF</button>
         <button id="settingsButton" class="ghost-btn">SETTINGS</button>
       </div>
     </header>
 
-    <aside class="search-panel holo-panel">
+    <aside class="search-panel holo-panel ui-window">
       <div class="panel-head">
         <div>
           <p class="eyebrow">SEARCH</p>
@@ -42,7 +43,7 @@
           <select id="workFilter"></select>
         </label>
         <label class="field compact">
-          <span>Continent</span>
+          <span>Island</span>
           <select id="continentFilter"></select>
         </label>
       </div>
@@ -52,7 +53,7 @@
       <div id="resultList" class="result-list"></div>
     </aside>
 
-    <aside class="detail-panel holo-panel">
+    <aside class="detail-panel holo-panel ui-window">
       <div class="panel-head">
         <div>
           <p class="eyebrow">SELECTED</p>
@@ -69,15 +70,18 @@
       </div>
     </aside>
 
-    <div class="legend holo-panel">
+    <div class="legend holo-panel ui-window">
       <p class="eyebrow">MODE</p>
       <div class="legend-lines">
         <div><span class="dot active"></span>DRAG = ROTATE</div>
         <div><span class="dot"></span>PINCH / WHEEL = ZOOM</div>
+        <div><span class="dot add"></span>LONG PRESS = ADD</div>
         <div><span class="dot move"></span>MOVE MODE = SURFACE DRAG</div>
       </div>
     </div>
 
+    <button id="exitViewButton" class="exit-view-button">EXIT VIEW</button>
+    <div id="longPressHint" class="long-press-hint">HOLD TO ADD</div>
     <div id="toast" class="toast" aria-live="polite"></div>
   </div>
 
@@ -96,7 +100,7 @@
         <label class="field"><span>性別</span><input id="genderInput" type="text" maxlength="40" /></label>
         <label class="field"><span>年齢</span><input id="ageInput" type="text" maxlength="40" /></label>
         <label class="field"><span>職業</span><input id="jobInput" type="text" maxlength="80" /></label>
-        <label class="field"><span>大陸</span><select id="continentInput"></select></label>
+        <label class="field"><span>島</span><select id="continentInput"></select></label>
         <label class="field full"><span>詳細</span><textarea id="detailInput" rows="5" placeholder="自由記述"></textarea></label>
       </div>
       <div class="modal-actions">
@@ -120,7 +124,7 @@
       <label class="field compact"><span>Search</span><input id="connectSearchInput" type="text" placeholder="名前 / 作品名" /></label>
       <div class="filter-grid compact-connect">
         <label class="field compact"><span>Work</span><select id="connectWorkFilter"></select></label>
-        <label class="field compact"><span>Continent</span><select id="connectContinentFilter"></select></label>
+        <label class="field compact"><span>Island</span><select id="connectContinentFilter"></select></label>
       </div>
       <div id="connectList" class="connect-list"></div>
       <div class="modal-actions">
@@ -134,14 +138,36 @@
       <div class="modal-header">
         <div>
           <p class="eyebrow">SETTINGS</p>
-          <h3>CONTINENTS / BACKUP</h3>
+          <h3>ISLANDS / HELP / BACKUP</h3>
         </div>
         <button data-close="settingsModal" class="close-btn">×</button>
       </div>
+
       <div class="settings-block">
-        <p class="settings-title">CONTINENT NAMES</p>
+        <p class="settings-title">ISLAND NAMES</p>
         <div id="continentNameList" class="continent-name-list"></div>
       </div>
+
+      <div class="settings-block add-island-block">
+        <p class="settings-title">ADD ISLAND</p>
+        <div class="add-island-grid">
+          <label class="field compact"><span>Name</span><input id="newIslandNameInput" type="text" maxlength="40" placeholder="NEW ISLAND" /></label>
+          <label class="field compact"><span>Size</span>
+            <select id="newIslandSizeInput">
+              <option value="small">小</option>
+              <option value="medium" selected>中</option>
+              <option value="large">大</option>
+            </select>
+          </label>
+          <button id="addIslandButton" class="solid-btn add-island-button">ADD</button>
+        </div>
+      </div>
+
+      <div class="settings-block">
+        <p class="settings-title">GUIDE</p>
+        <button id="helpButton" class="ghost-btn">HOW TO USE</button>
+      </div>
+
       <div class="settings-block">
         <p class="settings-title">BACKUP</p>
         <div class="settings-actions">
@@ -156,6 +182,29 @@
     </div>
   </div>
 
-  <script src="./app.js?v=01"></script>
+  <div id="helpModal" class="modal hidden">
+    <div class="modal-card holo-panel medium help-card">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">GUIDE</p>
+          <h3>HOW TO USE CROSS</h3>
+        </div>
+        <button data-close="helpModal" class="close-btn">×</button>
+      </div>
+      <div class="help-list">
+        <section><strong>地球を回す</strong><p>地表を指でつかみ、そのまま動かします。地球は指についてくる順方向です。</p></section>
+        <section><strong>拡大・縮小</strong><p>ピンチ操作で地球の大きさを変えます。</p></section>
+        <section><strong>人物を追加</strong><p>「+ CHARACTER」、または人物のいない地表を長押し。長押しした場合は、その座標に追加されます。</p></section>
+        <section><strong>人物を移動</strong><p>「MOVE ON」の時だけ人物を球面上で移動できます。通常時は位置が動きません。</p></section>
+        <section><strong>検索</strong><p>名前・作品名で検索し、作品または島で絞り込めます。結果を押すとその人物へ地球が回転します。</p></section>
+        <section><strong>接続</strong><p>人物を選び「CONNECT」。検索画面から相手を選ぶと、二人の座標を放物線で接続します。</p></section>
+        <section><strong>島</strong><p>設定で島名を変更できます。「小・中・大」から新しい島も追加できます。島は地理・作品・職業など、好きなカテゴリとして使えます。</p></section>
+        <section><strong>鑑賞モード</strong><p>「VIEW」で操作パネルをすべて隠し、地球・人物・接続だけを表示します。「EXIT VIEW」で戻ります。</p></section>
+      </div>
+      <div class="modal-actions"><button data-close="helpModal" class="solid-btn">CLOSE</button></div>
+    </div>
+  </div>
+
+  <script src="./app.js?v=10"></script>
 </body>
 </html>
