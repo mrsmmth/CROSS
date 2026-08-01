@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#081522" />
+  <title>CROSS</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <link rel="stylesheet" href="./style.css?v=01" />
+</head>
+<body>
+  <div class="app-shell">
+    <canvas id="globeCanvas"></canvas>
+
+    <header class="topbar holo-panel">
+      <div>
+        <p class="eyebrow">VIRTUAL COORDINATE</p>
+        <h1>CROSS</h1>
+      </div>
+      <div class="topbar-actions">
+        <button id="addNodeButton" class="ghost-btn">+ CHARACTER</button>
+        <button id="moveModeButton" class="ghost-btn">MOVE OFF</button>
+        <button id="settingsButton" class="ghost-btn">SETTINGS</button>
+      </div>
+    </header>
+
+    <aside class="search-panel holo-panel">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">SEARCH</p>
+          <h2>FILTER</h2>
+        </div>
+      </div>
+      <label class="field compact">
+        <span>Keyword</span>
+        <input id="searchInput" type="text" placeholder="名前 / 作品名" />
+      </label>
+      <div class="filter-grid">
+        <label class="field compact">
+          <span>Work</span>
+          <select id="workFilter"></select>
+        </label>
+        <label class="field compact">
+          <span>Continent</span>
+          <select id="continentFilter"></select>
+        </label>
+      </div>
+      <div class="result-meta">
+        <span id="resultCount">0 RESULTS</span>
+      </div>
+      <div id="resultList" class="result-list"></div>
+    </aside>
+
+    <aside class="detail-panel holo-panel">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">SELECTED</p>
+          <h2 id="selectedTitle">NO CHARACTER</h2>
+        </div>
+      </div>
+      <div id="selectedMeta" class="selected-meta empty">
+        地球上の座標をタップすると、ここに詳細が表示されます。
+      </div>
+      <div class="detail-actions">
+        <button id="focusSelectedButton" class="ghost-btn">FOCUS</button>
+        <button id="editSelectedButton" class="ghost-btn">EDIT</button>
+        <button id="connectSelectedButton" class="ghost-btn">CONNECT</button>
+      </div>
+    </aside>
+
+    <div class="legend holo-panel">
+      <p class="eyebrow">MODE</p>
+      <div class="legend-lines">
+        <div><span class="dot active"></span>DRAG = ROTATE</div>
+        <div><span class="dot"></span>PINCH / WHEEL = ZOOM</div>
+        <div><span class="dot move"></span>MOVE MODE = SURFACE DRAG</div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" aria-live="polite"></div>
+  </div>
+
+  <div id="editorModal" class="modal hidden">
+    <div class="modal-card holo-panel large">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">CHARACTER</p>
+          <h3 id="editorTitle">NEW CHARACTER</h3>
+        </div>
+        <button data-close="editorModal" class="close-btn">×</button>
+      </div>
+      <div class="editor-grid">
+        <label class="field"><span>名前</span><input id="nameInput" type="text" maxlength="80" /></label>
+        <label class="field"><span>作品名</span><input id="workInput" type="text" maxlength="80" /></label>
+        <label class="field"><span>性別</span><input id="genderInput" type="text" maxlength="40" /></label>
+        <label class="field"><span>年齢</span><input id="ageInput" type="text" maxlength="40" /></label>
+        <label class="field"><span>職業</span><input id="jobInput" type="text" maxlength="80" /></label>
+        <label class="field"><span>大陸</span><select id="continentInput"></select></label>
+        <label class="field full"><span>詳細</span><textarea id="detailInput" rows="5" placeholder="自由記述"></textarea></label>
+      </div>
+      <div class="modal-actions">
+        <button id="deleteNodeButton" class="ghost-btn danger">DELETE</button>
+        <div class="spacer"></div>
+        <button data-close="editorModal" class="ghost-btn">CANCEL</button>
+        <button id="saveNodeButton" class="solid-btn">SAVE</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="connectModal" class="modal hidden">
+    <div class="modal-card holo-panel medium">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">CONNECTION</p>
+          <h3>CONNECT CHARACTER</h3>
+        </div>
+        <button data-close="connectModal" class="close-btn">×</button>
+      </div>
+      <label class="field compact"><span>Search</span><input id="connectSearchInput" type="text" placeholder="名前 / 作品名" /></label>
+      <div class="filter-grid compact-connect">
+        <label class="field compact"><span>Work</span><select id="connectWorkFilter"></select></label>
+        <label class="field compact"><span>Continent</span><select id="connectContinentFilter"></select></label>
+      </div>
+      <div id="connectList" class="connect-list"></div>
+      <div class="modal-actions">
+        <button data-close="connectModal" class="ghost-btn">DONE</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-card holo-panel large">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">SETTINGS</p>
+          <h3>CONTINENTS / BACKUP</h3>
+        </div>
+        <button data-close="settingsModal" class="close-btn">×</button>
+      </div>
+      <div class="settings-block">
+        <p class="settings-title">CONTINENT NAMES</p>
+        <div id="continentNameList" class="continent-name-list"></div>
+      </div>
+      <div class="settings-block">
+        <p class="settings-title">BACKUP</p>
+        <div class="settings-actions">
+          <button id="exportButton" class="ghost-btn">EXPORT JSON</button>
+          <label class="ghost-btn file-btn">IMPORT JSON<input id="importInput" type="file" accept="application/json" hidden /></label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button data-close="settingsModal" class="ghost-btn">CLOSE</button>
+        <button id="saveSettingsButton" class="solid-btn">SAVE SETTINGS</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js?v=01"></script>
+</body>
+</html>
