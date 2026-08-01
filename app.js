@@ -31,8 +31,7 @@
       continents: clone(DEFAULT_CONTINENTS),
       nodes,
       links: [[nodes[0].id, nodes[1].id], [nodes[2].id, nodes[3].id]],
-      camera: { rotX: -0.2, rotY: 0.58, zoom: 1 },
-      moveMode: false,
+      camera: { rotX: -0.2, rotY: 0.58, zoom: 1, viewZoom: 1.08 },
       viewMode: false,
       selectedId: nodes[0].id
     };
@@ -43,7 +42,6 @@
   const canvas = $("globeCanvas");
   const ctx = canvas.getContext("2d");
   const addNodeButton = $("addNodeButton");
-  const moveModeButton = $("moveModeButton");
   const settingsButton = $("settingsButton");
   const viewModeButton = $("viewModeButton");
   const exitViewButton = $("exitViewButton");
@@ -121,11 +119,12 @@
     if (!migrated.continents.length) migrated.continents = clone(DEFAULT_CONTINENTS);
     migrated.nodes = Array.isArray(migrated.nodes) ? migrated.nodes : [];
     migrated.links = Array.isArray(migrated.links) ? migrated.links : [];
-    migrated.camera = { rotX: -0.2, rotY: 0.58, zoom: 1, ...(migrated.camera || {}) };
+    migrated.camera = { rotX: -0.2, rotY: 0.58, zoom: 1, viewZoom: 1.08, ...(migrated.camera || {}) };
     migrated.camera.zoom = clamp(Number(migrated.camera.zoom) || 1, 0.74, 1.64);
-    migrated.moveMode = false;
+    migrated.camera.viewZoom = clamp(Number(migrated.camera.viewZoom) || Math.max(1.08, migrated.camera.zoom), 0.58, 2.85);
+    delete migrated.moveMode;
     migrated.viewMode = false;
-    migrated.version = 2;
+    migrated.version = 3;
     const validIds = new Set(migrated.continents.map(item => item.id));
     const fallbackId = migrated.continents[0].id;
     migrated.nodes.forEach(node => {
@@ -162,7 +161,7 @@
 
   function persistState() {
     const persisted = clone(state);
-    persisted.moveMode = false;
+    delete persisted.moveMode;
     persisted.viewMode = false;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
   }
@@ -258,9 +257,10 @@
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     const viewScale = state.viewMode ? 0.31 : 0.24;
+    const zoom = state.viewMode ? state.camera.viewZoom : state.camera.zoom;
     const cx = width / 2;
     const cy = height / 2 + (state.viewMode ? 0 : (window.innerWidth > 820 ? 26 : 40));
-    const radius = Math.min(width, height) * viewScale * state.camera.zoom;
+    const radius = Math.min(width, height) * viewScale * zoom;
     return { width, height, cx, cy, radius };
   }
 
@@ -807,21 +807,22 @@
   }
 
   function updateModeButtons() {
-    moveModeButton.textContent = state.moveMode ? "MOVE ON" : "MOVE OFF";
-    moveModeButton.classList.toggle("active", state.moveMode);
     appShell.classList.toggle("view-mode", state.viewMode);
   }
 
   function enterViewMode() {
     state.viewMode = true;
-    state.moveMode = false;
+    state.camera.viewZoom = clamp(Number(state.camera.viewZoom) || 1.08, 0.58, 2.85);
     updateModeButtons();
-    showToast("鑑賞モード");
+    showToast("VIEW：長押しで移動 / 空き地表長押しで追加");
   }
 
   function exitViewMode() {
+    clearLongPress();
     state.viewMode = false;
+    activeNodeId = null;
     updateModeButtons();
+    persistState();
   }
 
   function clearLongPress() {
@@ -831,19 +832,31 @@
     longPressHint.classList.remove("show");
   }
 
-  function beginLongPress(event, coordinate) {
+  function beginLongPress(event, candidate) {
     clearLongPress();
-    longPressCandidate = coordinate;
+    longPressCandidate = candidate;
+    longPressHint.textContent = candidate.type === "move" ? "HOLD TO MOVE" : "HOLD TO ADD";
     longPressHint.style.left = `${event.clientX}px`;
     longPressHint.style.top = `${event.clientY - 36}px`;
     longPressHint.classList.add("show");
     longPressTimer = setTimeout(() => {
-      if (!longPressCandidate || moved || state.moveMode || state.viewMode) return;
+      if (!longPressCandidate || moved || !state.viewMode) return;
+      const confirmed = longPressCandidate;
       longPressTriggered = true;
-      dragging = false;
-      const position = { ...longPressCandidate };
       clearLongPress();
-      openEditor(null, position);
+      if (confirmed.type === "move") {
+        const node = getNode(confirmed.nodeId);
+        if (!node) return;
+        activeNodeId = node.id;
+        state.selectedId = node.id;
+        focusTarget = null;
+        renderSelectedInfo();
+        renderSearchResults();
+        showToast("そのままドラッグして移動");
+      } else {
+        dragging = false;
+        openEditor(null, { ...confirmed.coordinate });
+      }
       if (navigator.vibrate) navigator.vibrate(18);
     }, LONG_PRESS_MS);
   }
@@ -852,13 +865,6 @@
   settingsButton.addEventListener("click", () => { renderContinentSettings(); setModal(settingsModal, true); });
   viewModeButton.addEventListener("click", enterViewMode);
   exitViewButton.addEventListener("click", exitViewMode);
-  moveModeButton.addEventListener("click", () => {
-    state.moveMode = !state.moveMode;
-    activeNodeId = null;
-    updateModeButtons();
-    persistState();
-    showToast(state.moveMode ? "移動モードをONにしました" : "移動モードをOFFにしました");
-  });
   saveNodeButton.addEventListener("click", saveNode);
   deleteNodeButton.addEventListener("click", deleteNode);
   focusSelectedButton.addEventListener("click", () => state.selectedId && (focusTarget = state.selectedId));
@@ -886,21 +892,24 @@
     dragging = true;
     moved = false;
     longPressTriggered = false;
+    activeNodeId = null;
     pointerStart = { x: event.clientX, y: event.clientY };
     pointerLast = { ...pointerStart };
     const hit = hitTest(event.clientX, event.clientY);
-    activeNodeId = state.moveMode && !state.viewMode ? hit : null;
     const coordinate = screenPointToSphere(event.clientX, event.clientY);
-    if (!state.moveMode && !state.viewMode && !hit && coordinate) beginLongPress(event, coordinate);
+    if (state.viewMode) {
+      if (hit) beginLongPress(event, { type: "move", nodeId: hit });
+      else if (coordinate) beginLongPress(event, { type: "add", coordinate });
+    }
   });
 
   canvas.addEventListener("pointermove", event => {
     if (!dragging || event.pointerId !== activePointerId) return;
     const totalDx = event.clientX - pointerStart.x;
     const totalDy = event.clientY - pointerStart.y;
-    if (Math.hypot(totalDx, totalDy) > MOVE_THRESHOLD) {
+    if (!moved && Math.hypot(totalDx, totalDy) > MOVE_THRESHOLD) {
       moved = true;
-      clearLongPress();
+      if (!longPressTriggered) clearLongPress();
     }
     if (!moved) return;
 
@@ -908,7 +917,7 @@
     const dy = event.clientY - pointerLast.y;
     pointerLast = { x: event.clientX, y: event.clientY };
 
-    if (state.moveMode && activeNodeId && !state.viewMode) {
+    if (state.viewMode && longPressTriggered && activeNodeId) {
       const coordinate = screenPointToSphere(event.clientX, event.clientY);
       const node = getNode(activeNodeId);
       if (coordinate && node) {
@@ -916,10 +925,8 @@
         node.lon = coordinate.lon;
         state.selectedId = node.id;
         focusTarget = null;
-        renderSelectedInfo();
-        renderSearchResults();
       }
-    } else if (!state.moveMode || state.viewMode) {
+    } else {
       state.camera.rotY += dx * 0.0066;
       state.camera.rotX -= dy * 0.0066;
       state.camera.rotX = clamp(state.camera.rotX, -1.2, 1.2);
@@ -938,7 +945,7 @@
         focusTarget = hit;
         saveState();
       }
-    } else if (moved) {
+    } else if (moved || longPressTriggered) {
       persistState();
     }
     dragging = false;
@@ -956,9 +963,16 @@
     longPressTriggered = false;
   });
 
+  function zoomConfig() {
+    return state.viewMode
+      ? { key: "viewZoom", min: 0.58, max: 2.85, step: 0.085 }
+      : { key: "zoom", min: 0.74, max: 1.64, step: 0.06 };
+  }
+
   canvas.addEventListener("wheel", event => {
     event.preventDefault();
-    state.camera.zoom = clamp(state.camera.zoom - Math.sign(event.deltaY) * 0.06, 0.74, 1.64);
+    const config = zoomConfig();
+    state.camera[config.key] = clamp(state.camera[config.key] - Math.sign(event.deltaY) * config.step, config.min, config.max);
     persistState();
   }, { passive: false });
 
@@ -969,7 +983,8 @@
   canvas.addEventListener("touchmove", event => {
     if (event.touches.length === 2 && pinchDistance) {
       const current = distance(event.touches[0], event.touches[1]);
-      state.camera.zoom = clamp(state.camera.zoom + (current - pinchDistance) * 0.002, 0.74, 1.64);
+      const config = zoomConfig();
+      state.camera[config.key] = clamp(state.camera[config.key] + (current - pinchDistance) * 0.0025, config.min, config.max);
       pinchDistance = current;
     }
   }, { passive: true });
@@ -991,5 +1006,5 @@
   updateModeButtons();
   requestAnimationFrame(render);
 
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker.js?v=10");
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker.js?v=11");
 })();

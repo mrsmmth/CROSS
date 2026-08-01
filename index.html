@@ -7,7 +7,7 @@
   <title>CROSS</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icon-192.png" />
-  <link rel="stylesheet" href="./style.css?v=10" />
+  <link rel="stylesheet" href="./style.css?v=11" />
 </head>
 <body>
   <div id="appShell" class="app-shell">
@@ -21,7 +21,6 @@
       <div class="topbar-actions">
         <button id="viewModeButton" class="ghost-btn">VIEW</button>
         <button id="addNodeButton" class="ghost-btn">+ CHARACTER</button>
-        <button id="moveModeButton" class="ghost-btn">MOVE OFF</button>
         <button id="settingsButton" class="ghost-btn">SETTINGS</button>
       </div>
     </header>
@@ -75,13 +74,12 @@
       <div class="legend-lines">
         <div><span class="dot active"></span>DRAG = ROTATE</div>
         <div><span class="dot"></span>PINCH / WHEEL = ZOOM</div>
-        <div><span class="dot add"></span>LONG PRESS = ADD</div>
-        <div><span class="dot move"></span>MOVE MODE = SURFACE DRAG</div>
+        <div><span class="dot add"></span>VIEW = HOLD / MOVE / ADD</div>
       </div>
     </div>
 
     <button id="exitViewButton" class="exit-view-button">EXIT VIEW</button>
-    <div id="longPressHint" class="long-press-hint">HOLD TO ADD</div>
+    <div id="longPressHint" class="long-press-hint">HOLD</div>
     <div id="toast" class="toast" aria-live="polite"></div>
   </div>
 
@@ -193,18 +191,18 @@
       </div>
       <div class="help-list">
         <section><strong>地球を回す</strong><p>地表を指でつかみ、そのまま動かします。地球は指についてくる順方向です。</p></section>
-        <section><strong>拡大・縮小</strong><p>ピンチ操作で地球の大きさを変えます。</p></section>
-        <section><strong>人物を追加</strong><p>「+ CHARACTER」、または人物のいない地表を長押し。長押しした場合は、その座標に追加されます。</p></section>
-        <section><strong>人物を移動</strong><p>「MOVE ON」の時だけ人物を球面上で移動できます。通常時は位置が動きません。</p></section>
+        <section><strong>拡大・縮小</strong><p>ピンチ操作で地球の大きさを変えます。VIEWでは通常画面より深く拡大できます。</p></section>
+        <section><strong>人物を追加</strong><p>通常画面では「+ CHARACTER」。VIEWでは人物のいない地表を長押しすると、その座標に追加されます。</p></section>
+        <section><strong>人物を移動</strong><p>VIEWで人物を長押しし、反応後にそのままドラッグすると球面上を移動します。通常画面では位置が動きません。</p></section>
         <section><strong>検索</strong><p>名前・作品名で検索し、作品または島で絞り込めます。結果を押すとその人物へ地球が回転します。</p></section>
         <section><strong>接続</strong><p>人物を選び「CONNECT」。検索画面から相手を選ぶと、二人の座標を放物線で接続します。</p></section>
         <section><strong>島</strong><p>設定で島名を変更できます。「小・中・大」から新しい島も追加できます。島は地理・作品・職業など、好きなカテゴリとして使えます。</p></section>
-        <section><strong>鑑賞モード</strong><p>「VIEW」で操作パネルをすべて隠し、地球・人物・接続だけを表示します。「EXIT VIEW」で戻ります。</p></section>
+        <section><strong>VIEW</strong><p>操作パネルをすべて隠し、地球を直接触るモードです。人物タップでフォーカス、人物長押しドラッグで移動、空き地表長押しで追加。「EXIT VIEW」で戻ります。</p></section>
       </div>
       <div class="modal-actions"><button data-close="helpModal" class="solid-btn">CLOSE</button></div>
     </div>
   </div>
 
-  <script src="./app.js?v=10"></script>
+  <script src="./app.js?v=11"></script>
 </body>
 </html>

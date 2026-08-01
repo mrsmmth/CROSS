@@ -95,7 +95,6 @@ h3 { font-size: 20px; }
 .legend-lines { display: grid; gap: 8px; color: rgba(208, 246, 255, .76); font-size: 12px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: rgba(125,239,255,.56); box-shadow: 0 0 12px rgba(110,231,255,.4); }
 .dot.active { background: #8ffff4; }
-.dot.move { background: #8ab6ff; }
 .dot.add { background: #d0b1ff; }
 .toast {
   position: absolute; left: 50%; bottom: calc(22px + var(--safe-bottom)); transform: translate(-50%, 24px);
