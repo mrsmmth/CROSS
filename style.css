@@ -12,3 +12,5 @@
 @media(max-width:760px){.mode-switch{width:100%;margin-left:0}.mode-button{flex:1}.harmony-layout,.detect-layout{grid-template-columns:1fr;grid-template-areas:"chord" "melody" "result"}.detect-layout{grid-template-areas:"heard" "context" "candidates"}.context-grid{grid-template-columns:1fr}.candidate-row{grid-template-columns:38px 1fr auto}.candidate-tones{grid-column:2/4}.candidate-reason{grid-column:2/4}}
 
 .app{grid-template-columns:1fr;grid-template-areas:"brand";align-content:start}
+
+.warning[hidden]{display:none!important}
