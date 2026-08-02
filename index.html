@@ -1,90 +1,208 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b0e14">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="THREE PITCH">
-  <title>THREE PITCH</title>
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="apple-touch-icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=40">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#081522" />
+  <title>CROSS</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <link rel="stylesheet" href="./style.css?v=11" />
 </head>
 <body>
-  <main class="app">
-    <header class="brand">
-      <div class="mini-logo" aria-hidden="true"><span>THREE</span><strong>PITCH</strong></div>
-      <div class="brand-copy"><p>HARMONY TOOL</p><h1>THREE PITCH</h1><span>コード進行中の1音にフォーカス</span></div>
-      <nav class="header-actions" aria-label="アプリ操作">
-        <button id="openDetectButton" class="mode-button active" type="button">コード生成</button>
-        <button id="guideButton" class="help-button" type="button" aria-label="使い方を表示">?</button>
-      </nav>
+  <div id="appShell" class="app-shell">
+    <canvas id="globeCanvas"></canvas>
+
+    <header class="topbar holo-panel ui-window">
+      <div>
+        <p class="eyebrow">VIRTUAL COORDINATE</p>
+        <h1>CROSS</h1>
+      </div>
+      <div class="topbar-actions">
+        <button id="viewModeButton" class="ghost-btn">VIEW</button>
+        <button id="addNodeButton" class="ghost-btn">+ CHARACTER</button>
+        <button id="settingsButton" class="ghost-btn">SETTINGS</button>
+      </div>
     </header>
 
-    <section class="harmony-layout">
-      <section class="control-card chord-card">
-        <div class="section-title"><span>01</span><div><h2>CHORD</h2><p>その瞬間のコードを選択</p></div></div>
-        <div class="label">ROOT</div><div id="rootGrid" class="notes-grid"></div>
-        <div class="split-row">
-          <div><div class="label">BASE</div><div id="baseGrid" class="choice-grid base-grid"></div></div>
-          <div><div class="label">SHAPE</div><div id="shapeGrid" class="choice-grid shape-grid"></div></div>
+    <aside class="search-panel holo-panel ui-window">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">SEARCH</p>
+          <h2>FILTER</h2>
         </div>
-        <div class="label decoration-label">DECORATION</div><div id="decorationGrid" class="decoration-grid"></div>
-        <div class="summary"><strong id="chordName">C</strong><span id="chordTones">C · E · G</span></div>
-        <button id="playChordButton" class="sound-button wide" type="button">♪ コード同時再生</button>
-      </section>
+      </div>
+      <label class="field compact">
+        <span>Keyword</span>
+        <input id="searchInput" type="text" placeholder="名前 / 作品名" />
+      </label>
+      <div class="filter-grid">
+        <label class="field compact">
+          <span>Work</span>
+          <select id="workFilter"></select>
+        </label>
+        <label class="field compact">
+          <span>Island</span>
+          <select id="continentFilter"></select>
+        </label>
+      </div>
+      <div class="result-meta">
+        <span id="resultCount">0 RESULTS</span>
+      </div>
+      <div id="resultList" class="result-list"></div>
+    </aside>
 
-      <section class="control-card melody-card">
-        <div class="section-title"><span>02</span><div><h2>MELODY</h2><p>コード構成音がリアルタイム発光</p></div></div>
-        <div id="melodyGrid" class="notes-grid"></div>
-        <div id="melodyWarning" class="warning" hidden><strong>⚠ コード外音</strong><span>選択した主旋律は、このコードの構成音ではありません。</span></div>
-        <div class="sound-grid">
-          <button id="playMelodyButton" class="sound-button" type="button">♪ 主旋律</button>
-          <button id="playUpperButton" class="sound-button" type="button">♪ 上ハモ</button>
-          <button id="playLowerButton" class="sound-button" type="button">♪ 下ハモ</button>
+    <aside class="detail-panel holo-panel ui-window">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">SELECTED</p>
+          <h2 id="selectedTitle">NO CHARACTER</h2>
         </div>
-      </section>
+      </div>
+      <div id="selectedMeta" class="selected-meta empty">
+        地球上の座標をタップすると、ここに詳細が表示されます。
+      </div>
+      <div class="detail-actions">
+        <button id="focusSelectedButton" class="ghost-btn">FOCUS</button>
+        <button id="editSelectedButton" class="ghost-btn">EDIT</button>
+        <button id="connectSelectedButton" class="ghost-btn">CONNECT</button>
+      </div>
+    </aside>
 
-      <section class="result-card" aria-live="polite">
-        <div class="result-grid">
-          <article class="harmony-result upper-result"><div class="result-kicker">上3度（下5度）</div><div id="upperResultNote" class="result-note">E</div><div class="direction-label">上の最短</div></article>
-          <div class="result-divider" aria-hidden="true"></div>
-          <article class="harmony-result lower-result"><div class="result-kicker">下3度（上5度）</div><div id="lowerResultNote" class="result-note">G</div><div class="direction-label">下の最短</div></article>
+    <div class="legend holo-panel ui-window">
+      <p class="eyebrow">MODE</p>
+      <div class="legend-lines">
+        <div><span class="dot active"></span>DRAG = ROTATE</div>
+        <div><span class="dot"></span>PINCH / WHEEL = ZOOM</div>
+        <div><span class="dot add"></span>VIEW = HOLD / MOVE / ADD</div>
+      </div>
+    </div>
+
+    <button id="exitViewButton" class="exit-view-button">EXIT VIEW</button>
+    <div id="longPressHint" class="long-press-hint">HOLD</div>
+    <div id="toast" class="toast" aria-live="polite"></div>
+  </div>
+
+  <div id="editorModal" class="modal hidden">
+    <div class="modal-card holo-panel large">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">CHARACTER</p>
+          <h3 id="editorTitle">NEW CHARACTER</h3>
         </div>
-        <div class="rule-chip">基本三和音で判定</div>
-        <div class="maybe"><span>もしかして？</span><div id="maybeNotes" class="maybe-notes"></div></div>
-        <button id="harmonyCheckButton" class="sound-button harmony-check" type="button">♪ ハモ確認　主旋律 → 上 → 下 → 3音同時</button>
-      </section>
-    </section>
-  </main>
+        <button data-close="editorModal" class="close-btn">×</button>
+      </div>
+      <div class="editor-grid">
+        <label class="field"><span>名前</span><input id="nameInput" type="text" maxlength="80" /></label>
+        <label class="field"><span>作品名</span><input id="workInput" type="text" maxlength="80" /></label>
+        <label class="field"><span>性別</span><input id="genderInput" type="text" maxlength="40" /></label>
+        <label class="field"><span>年齢</span><input id="ageInput" type="text" maxlength="40" /></label>
+        <label class="field"><span>職業</span><input id="jobInput" type="text" maxlength="80" /></label>
+        <label class="field"><span>島</span><select id="continentInput"></select></label>
+        <label class="field full"><span>詳細</span><textarea id="detailInput" rows="5" placeholder="自由記述"></textarea></label>
+      </div>
+      <div class="modal-actions">
+        <button id="deleteNodeButton" class="ghost-btn danger">DELETE</button>
+        <div class="spacer"></div>
+        <button data-close="editorModal" class="ghost-btn">CANCEL</button>
+        <button id="saveNodeButton" class="solid-btn">SAVE</button>
+      </div>
+    </div>
+  </div>
 
-  <dialog id="guideDialog" class="guide-dialog">
-    <form method="dialog" class="guide-panel">
-      <button class="dialog-close" value="close" aria-label="閉じる">×</button>
-      <div class="guide-logo">THREE PITCH</div>
-      <p>このアプリは</p>
-      <p class="guide-emphasis">「コード進行中の1音」</p>
-      <p>だけにフォーカスし、</p>
-      <p>その瞬間の最短ハモを<br>素早く確認するための<br>シンプルツールです。</p>
-      <h3>【ハモモード】</h3>
-      <p>①コードを選択<br>②主旋律を選択</p>
-      <p>すると</p>
-      <p>・上3度（下5度）<br>・下3度（上5度）</p>
-      <p>を表示します。</p>
-      <p>コード構成音は自動で発光します。</p>
-      <p>コード外音を選択すると<br>警告が表示されます。</p>
-      <h3>【コード生成】</h3>
-      <p>聞こえた音を選択すると</p>
-      <p>候補コードを<br>可能性が高い順に表示します。</p>
-      <p>前後コードを入力すると<br>コード進行を考慮した候補順位へ<br>自動調整します。</p>
-      <label class="dont-show"><input id="dontShowGuide" type="checkbox"> 次回から表示しない</label>
-      <button id="guideOkButton" class="guide-ok" value="ok">OK</button>
-    </form>
-  </dialog>
+  <div id="connectModal" class="modal hidden">
+    <div class="modal-card holo-panel medium">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">CONNECTION</p>
+          <h3>CONNECT CHARACTER</h3>
+        </div>
+        <button data-close="connectModal" class="close-btn">×</button>
+      </div>
+      <label class="field compact"><span>Search</span><input id="connectSearchInput" type="text" placeholder="名前 / 作品名" /></label>
+      <div class="filter-grid compact-connect">
+        <label class="field compact"><span>Work</span><select id="connectWorkFilter"></select></label>
+        <label class="field compact"><span>Island</span><select id="connectContinentFilter"></select></label>
+      </div>
+      <div id="connectList" class="connect-list"></div>
+      <div class="modal-actions">
+        <button data-close="connectModal" class="ghost-btn">DONE</button>
+      </div>
+    </div>
+  </div>
 
-  <script src="./app.js?v=40"></script>
-  <script>if("serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js"));}</script>
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-card holo-panel large">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">SETTINGS</p>
+          <h3>ISLANDS / HELP / BACKUP</h3>
+        </div>
+        <button data-close="settingsModal" class="close-btn">×</button>
+      </div>
+
+      <div class="settings-block">
+        <p class="settings-title">ISLAND NAMES</p>
+        <div id="continentNameList" class="continent-name-list"></div>
+      </div>
+
+      <div class="settings-block add-island-block">
+        <p class="settings-title">ADD ISLAND</p>
+        <div class="add-island-grid">
+          <label class="field compact"><span>Name</span><input id="newIslandNameInput" type="text" maxlength="40" placeholder="NEW ISLAND" /></label>
+          <label class="field compact"><span>Size</span>
+            <select id="newIslandSizeInput">
+              <option value="small">小</option>
+              <option value="medium" selected>中</option>
+              <option value="large">大</option>
+            </select>
+          </label>
+          <button id="addIslandButton" class="solid-btn add-island-button">ADD</button>
+        </div>
+      </div>
+
+      <div class="settings-block">
+        <p class="settings-title">GUIDE</p>
+        <button id="helpButton" class="ghost-btn">HOW TO USE</button>
+      </div>
+
+      <div class="settings-block">
+        <p class="settings-title">BACKUP</p>
+        <div class="settings-actions">
+          <button id="exportButton" class="ghost-btn">EXPORT JSON</button>
+          <label class="ghost-btn file-btn">IMPORT JSON<input id="importInput" type="file" accept="application/json" hidden /></label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button data-close="settingsModal" class="ghost-btn">CLOSE</button>
+        <button id="saveSettingsButton" class="solid-btn">SAVE SETTINGS</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="helpModal" class="modal hidden">
+    <div class="modal-card holo-panel medium help-card">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">GUIDE</p>
+          <h3>HOW TO USE CROSS</h3>
+        </div>
+        <button data-close="helpModal" class="close-btn">×</button>
+      </div>
+      <div class="help-list">
+        <section><strong>地球を回す</strong><p>地表を指でつかみ、そのまま動かします。地球は指についてくる順方向です。</p></section>
+        <section><strong>拡大・縮小</strong><p>ピンチ操作で地球の大きさを変えます。VIEWでは通常画面より深く拡大できます。</p></section>
+        <section><strong>人物を追加</strong><p>通常画面では「+ CHARACTER」。VIEWでは人物のいない地表を長押しすると、その座標に追加されます。</p></section>
+        <section><strong>人物を移動</strong><p>VIEWで人物を長押しし、反応後にそのままドラッグすると球面上を移動します。通常画面では位置が動きません。</p></section>
+        <section><strong>検索</strong><p>名前・作品名で検索し、作品または島で絞り込めます。結果を押すとその人物へ地球が回転します。</p></section>
+        <section><strong>接続</strong><p>人物を選び「CONNECT」。検索画面から相手を選ぶと、二人の座標を放物線で接続します。</p></section>
+        <section><strong>島</strong><p>設定で島名を変更できます。「小・中・大」から新しい島も追加できます。島は地理・作品・職業など、好きなカテゴリとして使えます。</p></section>
+        <section><strong>VIEW</strong><p>操作パネルをすべて隠し、地球を直接触るモードです。人物タップでフォーカス、人物長押しドラッグで移動、空き地表長押しで追加。「EXIT VIEW」で戻ります。</p></section>
+      </div>
+      <div class="modal-actions"><button data-close="helpModal" class="solid-btn">CLOSE</button></div>
+    </div>
+  </div>
+
+  <script src="./app.js?v=11"></script>
 </body>
 </html>
