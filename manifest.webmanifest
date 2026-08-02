@@ -1,10 +1,11 @@
 {
-  "name": "CROSS",
-  "short_name": "CROSS",
-  "display": "standalone",
+  "name": "THREE PITCH",
+  "short_name": "THREE PITCH",
+  "description": "最短ハモ判定と、聞こえた音・前後コードからコード候補を生成するオフラインアプリ",
   "start_url": "./",
-  "background_color": "#06111d",
-  "theme_color": "#081522",
+  "display": "standalone",
+  "background_color": "#080a0f",
+  "theme_color": "#0b0e14",
   "icons": [
     {
       "src": "./icon-192.png",
